@@ -4,7 +4,6 @@
 
 [![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
 
 QGASP identifies near-optimal quantum circuits for data-reuploading models
 without variational training. By combining graph-theoretic proxies, PCA-based
