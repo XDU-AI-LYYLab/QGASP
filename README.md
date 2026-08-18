@@ -77,17 +77,6 @@ configurations in `demo.py`:
 
 Feature naming conventions are listed in Appendix A of the manuscript.
 
-## Citation
-
-```bibtex
-@article{li2026qgasp,
-  title={QGASP: Training-free Quantum Architecture Search via Graph-theoretic Proxies and Space Decoupling},
-  author={Li, Yangyang and Deng, Yu and Li, Lingling and Shang, Ronghua and Jiao, Licheng},
-  journal={Information Fusion},
-  year={2026},
-  note={Under review}
-}
-```
 
 ## License
 
