@@ -1,99 +1,62 @@
-# Zero-Cost Proxy Framework for Quantum Architecture Search
+# QGASP
 
-Code release accompanying the manuscript. This archive ships the minimal,
-self-contained implementation of the five-stage training-free architecture
-search framework:
+**Training-free Quantum Architecture Search with Graph-theoretic Proxies**
 
-1. **Stage I - Hardware-Aware Uniform Sampling (HA-US)**: sample candidate
-   circuits under the Hardware-Compatible Virtual Gate Set (HC-VGS) and the
-   physical coupling map.
-2. **Stage II - Multi-Dimensional Zero-Cost Proxy Extraction**: extract 26
-   proxy features (topological & causal, centrality & spatial dynamics,
-   information-theoretic divergence, noise-aware, expressibility &
-   trainability) from each candidate without training.
-3. **Stage III - Unsupervised Latent Sampling and Training Set Construction**:
-   build a PCA basis of the proxy matrix and perform stratified grid sampling
-   in the latent space to select a structurally diverse subset.
-4. **Stage IV - Noise-Aware Architecture Evaluation**: evaluate the selected
-   circuits under the local clock-scheduled noise injection model (analytical
-   Kraus channels, two-pass ALAP scheduling, state-aware decoherence
-   penalties) to obtain ground-truth performance labels.
-5. **Stage V - Surrogate Training and Performance Validation via Top-K Gain**:
-   train a lightweight XGBoost surrogate on the labeled pairs and assess its
-   ranking capability with the Top-K Gain AUC criterion.
+[![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
 
-## Repository layout
+QGASP identifies near-optimal quantum circuits for data-reuploading models
+without variational training. By combining graph-theoretic proxies, PCA-based
+stratified sampling, and a local clock-scheduled noise model, it achieves
+competitive performance with only 110 real-device queries.
 
-```
-manuscript_code/
-├── README.md
-├── requirements.txt
-├── demo.py                  # runs all five stages end-to-end (no data required)
-├── data_prepare.py          # Stages I & III: HA-US sampling, dataset transforms,
-│                            #   PCA latent sampling, stratified bin sampling, Hamiltonians
-├── quantum_api_v3.py        # Stages II & IV: 26-dim proxy extraction (DAG + Ray pipeline),
-│                            #   expressibility/trainability/SNIP, noise injectors, VQC ansatz
-├── compute_metric.py        # Stages IV & V: ground-truth evaluation pipelines
-│                            #   (classification AUC / VQE energy) and Top-K Gain AUC
-└── stage5_surrogate.py      # Stage V: XGBoost surrogate training + Top-K Gain validation
-```
+The framework operates in five stages: candidate generation under hardware
+connectivity constraints, 26-dimensional proxy extraction from circuit DAGs,
+PCA latent-space sampling, noise-aware labeling via analytical Kraus channels,
+and XGBoost surrogate training with Top-K Gain validation.
 
-## Environment
-
-A CUDA-capable GPU is recommended (Stage II expressibility/trainability and
-Stage IV evaluation use batched statevector simulation). The code was tested
-with Python 3.13, torch 2.10, PennyLane 0.44 (+ `pennylane-lightning-gpu`),
-ray 2.56, qiskit 2.3 / qiskit-aer 0.17, xgboost 3.2.
+## Quick Start
 
 ```bash
 pip install -r requirements.txt
+python demo.py --qubits 4 --n 30    # 4-qubit classification
+python demo.py --qubits 7 --n 30    # 7-qubit VQE
 ```
 
-Notes:
+## Requirements
 
-- `quantum_api_v3.py` imports `qiskit` (Aer, IBM-runtime fake provider,
-  machine-learning) at module level; those packages are required.
-- If a patched PennyLane build was used in the original environment, activate
-  it as usual (e.g., add its path to `PYTHONPATH`).
+- Python 3.13+
+- CUDA-capable GPU recommended
+- Key dependencies: PyTorch 2.10, PennyLane 0.44, Qiskit 2.3, XGBoost 3.2, Ray 2.56
 
-## Quick start
+See `requirements.txt` for the full list.
 
-```bash
-# Run all five stages on 30 sampled architectures (4-qubit classification config)
-python demo.py --qubits 4 --n 30
+## Repository Layout
 
-# Same for the 7-qubit VQE configuration
-python demo.py --qubits 7 --n 30
+```text
+├── README.md
+├── requirements.txt
+├── demo.py                  # End-to-end pipeline (all five stages)
+├── data_prepare.py          # Stages I & III: sampling, PCA, stratified binning
+├── quantum_api_v3.py        # Stages II & IV: proxy extraction, noise injection, VQC
+├── compute_metric.py        # Stages IV & V: evaluation pipelines, Top-K Gain AUC
+└── stage5_surrogate.py      # Stage V: XGBoost surrogate training
 ```
 
-The demo covers Stages I-III on the sampled pool, runs one clock-scheduled
-noisy evaluation (Stage IV) on the first circuit, and trains/validates the
-XGBoost surrogate with Top-K Gain (Stage V) using synthetic labels for
-illustration.
+## Usage
 
-## Stage-to-module mapping
-
-| Stage | Method (manuscript) | Implementation |
-|---|---|---|
-| I | HA-US sampling | `data_prepare.decisions_generator` (HC-VGS, coupling-aware) |
-| II | 26-dim zero-cost proxies | `quantum_api_v3.calculate_graph_proxies_ray` and the `compute_*` proxy functions |
-| III | PCA latent stratified sampling | `data_prepare.NonlinearFeatureTransformer`, `compute_latent_boundaries`, `get_bin_indices`, `sample_from_bins`, `latent_space_stratified_sampling` |
-| IV | Noise-aware evaluation | `quantum_api_v3` (AdvancedNISQInjector, TraditionalNISQInjector, make_noisy_qnode, DecisionsAnsatz, analyze_circuit_timing, VQCFeatureExtractor, QiskitVQCFeatureExtractor); `compute_metric` (VQCPipeline, VQCClassifier, train_and_evaluate, VQEModel, train_vqe_model, VQEPipeline) |
-| V | Surrogate training + Top-K Gain | `stage5_surrogate.train_surrogate` / `train_and_validate`; `compute_metric.compute_relative_topk_gain_auc` |
-
-## Using Stage IV and Stage V on real labels
-
-Stage IV produces ground-truth labels for the sampled architectures:
+### Stage IV: Ground-truth labels
 
 ```python
 from compute_metric import VQCPipeline
 
-pipeline = VQCPipeline(...)            # classification target (AUC)
-# or VQEPipeline(...)                  # VQE target (ground-state energy)
-labels = pipeline.by_decisions(decisions_list, mode="ray", ...)
+pipeline = VQCPipeline(...)            # classification (AUC)
+# or VQEPipeline(...)                  # VQE (ground-state energy)
+labels = pipeline.by_decisions(decisions_list, mode="ray")
 ```
 
-Stage V then trains the surrogate on the labeled pairs:
+### Stage V: Surrogate training
 
 ```python
 from stage5_surrogate import train_and_validate
@@ -102,19 +65,31 @@ model, metrics = train_and_validate(X_proxies, labels, test_size=0.2)
 # metrics: topk_gain_auc_mean, topk_gain_auc_max, spearman
 ```
 
-For VQE energy labels, negate the energies before training (larger is better).
+For VQE, negate energies before training (larger is better).
 
-## Data and experiment notebooks
+## Data
 
-Per the release scope, the precomputed proxy/target databases and the
-experiment notebooks are maintained separately. The pool databases can be
-regenerated with Stage I + Stage II using the exact pool-construction
-configurations embedded in `data_prepare.py` and `demo.py`:
+Precomputed proxy/target databases and experiment notebooks are maintained
+separately. Pool databases can be regenerated via Stage I + II using the
+configurations in `demo.py`:
 
-- 4-qubit classification: `x_num=(1,50)`, `param=(1,40)`, `ent=(1,40)`
-  on the 4-qubit Casablanca topology;
-- 7-qubit VQE: `x_num=(0,0)`, `param=(1,100)`, `ent=(1,30)` on the 7-qubit
-  topology.
+- 4-qubit classification: Casablanca topology, `x_num=(1,50)`, `param=(1,40)`, `ent=(1,40)`
+- 7-qubit VQE: 7-qubit topology, `x_num=(0,0)`, `param=(1,100)`, `ent=(1,30)`
 
-The feature naming convention (raw name -> readable name + LaTeX symbol) used
-in the manuscript figures is listed in Appendix A of the manuscript.
+Feature naming conventions are listed in Appendix A of the manuscript.
+
+## Citation
+
+```bibtex
+@article{li2026qgasp,
+  title={QGASP: Training-free Quantum Architecture Search via Graph-theoretic Proxies and Space Decoupling},
+  author={Li, Yangyang and Deng, Yu and Li, Lingling and Shang, Ronghua and Jiao, Licheng},
+  journal={Information Fusion},
+  year={2026},
+  note={Under review}
+}
+```
+
+## License
+
+MIT
